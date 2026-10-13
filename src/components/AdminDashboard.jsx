@@ -9,9 +9,11 @@ import {
   Layers,
   Filter,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { exportFeedbackToExcel } from '../utils/excelExport';
+import { deleteSingleFeedback } from '../services/firebase';
 
 export default function AdminDashboard({
   feedbacks = [],
@@ -20,7 +22,7 @@ export default function AdminDashboard({
   isFirebaseActive,
   onNavigateHome
 }) {
-  const [selectedBatch, setSelectedBatch] = useState('ALL');
+  const [selectedBatch, setSelectedBatch] = useState(activeSessionId || 'ALL');
   const [selectedRating, setSelectedRating] = useState('ALL');
 
   // Extract all distinct batches from the feedback data & current active session
@@ -83,6 +85,18 @@ export default function AdminDashboard({
     }
     const filterContext = `${selectedBatch}_${selectedRating}stars`;
     exportFeedbackToExcel(filteredFeedbacks, filterContext);
+  };
+
+  // Handle individual feedback deletion
+  const handleDeleteReview = async (id) => {
+    if (!id) return;
+    if (window.confirm('Are you sure you want to delete this student review?')) {
+      try {
+        await deleteSingleFeedback(id);
+      } catch (err) {
+        alert('Failed to delete review. Please check your network connection.');
+      }
+    }
   };
 
   return (
@@ -283,10 +297,21 @@ export default function AdminDashboard({
                             {itemBatch}
                           </span>
                         </div>
-                        <span className="text-muted small" style={{ fontSize: '0.78rem' }}>
-                          <Calendar size={12} className="inline me-1" />
-                          {dateDisplay}
-                        </span>
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="text-muted small" style={{ fontSize: '0.78rem' }}>
+                            <Calendar size={12} className="inline me-1" />
+                            {dateDisplay}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-link text-danger p-0 border-0 opacity-50 hover-opacity-100"
+                            title="Delete this review"
+                            onClick={() => handleDeleteReview(item.id)}
+                            style={{ lineHeight: 1 }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Stars */}

@@ -9,6 +9,7 @@ import {
   onSnapshot,
   doc,
   setDoc,
+  deleteDoc,
   writeBatch,
   serverTimestamp,
   orderBy
@@ -377,9 +378,31 @@ export function subscribeToFeedbacks(activeSessionId, callback) {
 }
 
 /**
- * Reset all feedback.
+ * Delete an individual feedback response by ID.
+ */
+export async function deleteSingleFeedback(feedbackId) {
+  if (!feedbackId) return { success: false };
+
+  if (!db) {
+    const list = getMockData().filter((f) => f.id !== feedbackId);
+    saveMockData(list);
+    return { success: true };
+  }
+
+  try {
+    await deleteDoc(doc(db, 'student_feedbacks', feedbackId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error deleting single feedback:', err);
+    throw err;
+  }
+}
+
+/**
+ * Reset feedback options.
  * mode: 'new_session' (Sets new batch name, fresh start for student devices)
- * mode: 'wipe' (Permanently deletes active feedbacks from the database)
+ * mode: 'wipe_all' (Permanently deletes ALL feedback across the entire database)
+ * mode: 'wipe_active' (Permanently deletes feedback only for the active batch)
  */
 export async function resetFeedbacks({ mode = 'new_session', currentSessionId, batchName }) {
   const chosenBatch = (batchName && batchName.trim()) ? batchName.trim() : ('Batch-' + Date.now());
@@ -388,7 +411,14 @@ export async function resetFeedbacks({ mode = 'new_session', currentSessionId, b
     if (mode === 'new_session') {
       setLocalActiveSessionId(chosenBatch);
       return { success: true, newSessionId: chosenBatch };
+    } else if (mode === 'wipe_active') {
+      const remaining = getMockData().filter(
+        (f) => f.sessionId !== currentSessionId && f.batchName !== currentSessionId
+      );
+      saveMockData(remaining);
+      return { success: true };
     } else {
+      // Full wipe
       saveMockData([]);
       return { success: true };
     }
@@ -403,13 +433,23 @@ export async function resetFeedbacks({ mode = 'new_session', currentSessionId, b
         updatedAt: serverTimestamp(),
       });
       return { success: true, newSessionId: chosenBatch };
+    } else if (mode === 'wipe_active') {
+      // Wipe only documents for the current session/batch
+      const feedbacksRef = collection(db, 'student_feedbacks');
+      const snap1 = await getDocs(query(feedbacksRef, where('sessionId', '==', currentSessionId)));
+      const snap2 = await getDocs(query(feedbacksRef, where('batchName', '==', currentSessionId)));
+
+      const toDelete = new Map();
+      snap1.forEach((d) => toDelete.set(d.id, d.ref));
+      snap2.forEach((d) => toDelete.set(d.id, d.ref));
+
+      const batch = writeBatch(db);
+      toDelete.forEach((ref) => batch.delete(ref));
+      await batch.commit();
+      return { success: true };
     } else {
-      // Hard wipe all documents for current session
-      const q = query(
-        collection(db, 'student_feedbacks'),
-        where('sessionId', '==', currentSessionId)
-      );
-      const snapshot = await getDocs(q);
+      // WIPE ALL: Delete all feedback documents across ALL batches in the database
+      const snapshot = await getDocs(collection(db, 'student_feedbacks'));
       const batch = writeBatch(db);
       snapshot.forEach((docSnap) => {
         batch.delete(docSnap.ref);

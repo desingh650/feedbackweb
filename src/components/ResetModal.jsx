@@ -142,31 +142,61 @@ export default function ResetModal({
               )}
             </div>
 
-            {/* Option 2: Wipe Current */}
+            {/* Option 2: Full Database Wipe */}
             <div
-              className={`p-3 rounded-3 border cursor-pointer transition ${
-                mode === 'wipe'
+              className={`p-3 rounded-3 border mb-3 cursor-pointer transition ${
+                mode === 'wipe_all'
                   ? 'border-danger bg-danger-subtle'
                   : 'border-light-subtle bg-light'
               }`}
               style={{ cursor: 'pointer' }}
-              onClick={() => setMode('wipe')}
+              onClick={() => setMode('wipe_all')}
             >
               <div className="form-check d-flex align-items-start gap-2 ps-0">
                 <input
                   className="form-check-input mt-1 ms-0"
                   type="radio"
                   name="resetOption"
-                  id="optWipe"
-                  checked={mode === 'wipe'}
-                  onChange={() => setMode('wipe')}
+                  id="optWipeAll"
+                  checked={mode === 'wipe_all'}
+                  onChange={() => setMode('wipe_all')}
                 />
-                <label className="form-check-label w-100" htmlFor="optWipe" style={{ cursor: 'pointer' }}>
+                <label className="form-check-label w-100" htmlFor="optWipeAll" style={{ cursor: 'pointer' }}>
                   <div className="d-flex align-items-center gap-1">
-                    <span className="fw-bold text-danger">Permanently Delete Current Feedback</span>
+                    <span className="fw-bold text-danger">Permanently Delete ALL Feedback (Full Wipe)</span>
                   </div>
                   <div className="text-muted small mt-1">
-                    Wipes all reviews and ratings in the current batch. All student devices can submit fresh reviews.
+                    Completely deletes all reviews and ratings from all batches in the database. Total reviews will become 0.
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Option 3: Wipe Active Batch Only */}
+            <div
+              className={`p-3 rounded-3 border cursor-pointer transition ${
+                mode === 'wipe_active'
+                  ? 'border-warning bg-warning-subtle'
+                  : 'border-light-subtle bg-light'
+              }`}
+              style={{ cursor: 'pointer' }}
+              onClick={() => setMode('wipe_active')}
+            >
+              <div className="form-check d-flex align-items-start gap-2 ps-0">
+                <input
+                  className="form-check-input mt-1 ms-0"
+                  type="radio"
+                  name="resetOption"
+                  id="optWipeActive"
+                  checked={mode === 'wipe_active'}
+                  onChange={() => setMode('wipe_active')}
+                />
+                <label className="form-check-label w-100" htmlFor="optWipeActive" style={{ cursor: 'pointer' }}>
+                  <div className="d-flex align-items-center gap-1">
+                    <span className="fw-bold text-dark">Delete Only Active Batch Feedback</span>
+                  </div>
+                  <div className="text-muted small mt-1">
+                    Deletes reviews only for the current batch (<code className="text-dark">{activeSessionId}</code>). Other historical batches remain intact.
                   </div>
                 </label>
               </div>
@@ -185,7 +215,11 @@ export default function ResetModal({
             <button
               type="button"
               className={`btn rounded-pill px-4 d-inline-flex align-items-center gap-2 ${
-                mode === 'wipe' ? 'btn-danger' : 'btn-primary'
+                mode === 'wipe_all'
+                  ? 'btn-danger'
+                  : mode === 'wipe_active'
+                  ? 'btn-warning text-dark'
+                  : 'btn-primary'
               }`}
               onClick={handleExecuteReset}
               disabled={isProcessing}
@@ -198,7 +232,13 @@ export default function ResetModal({
               ) : (
                 <>
                   <RotateCcw size={16} />
-                  <span>{mode === 'wipe' ? 'Confirm Wipe' : 'Start Fresh Session'}</span>
+                  <span>
+                    {mode === 'wipe_all'
+                      ? 'Confirm Full Wipe'
+                      : mode === 'wipe_active'
+                      ? 'Delete Active Batch'
+                      : 'Start Fresh Session'}
+                  </span>
                 </>
               )}
             </button>
