@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Star,
   Download,
   RotateCcw,
+  ArrowLeft,
   MessageSquare,
-  Users,
-  ShieldCheck,
+  Calendar,
+  Layers,
   Filter,
   CheckCircle2,
-  Trash2,
-  Calendar,
   Sparkles
 } from 'lucide-react';
 import { exportFeedbackToExcel } from '../utils/excelExport';
@@ -19,23 +18,56 @@ export default function AdminDashboard({
   activeSessionId,
   onOpenResetModal,
   isFirebaseActive,
-  adminSessionScope = 'CURRENT',
-  setAdminSessionScope
+  onNavigateHome
 }) {
-  const [selectedFilter, setSelectedFilter] = useState('ALL');
+  const [selectedBatch, setSelectedBatch] = useState('ALL');
+  const [selectedRating, setSelectedRating] = useState('ALL');
 
-  // Calculate statistics
-  const totalReviews = feedbacks.length;
-  const totalRatingSum = feedbacks.reduce((acc, curr) => acc + (Number(curr.rating) || 0), 0);
-  const averageRating = totalReviews > 0 ? (totalRatingSum / totalReviews).toFixed(1) : '0.0';
+  // Extract all distinct batches from the feedback data & current active session
+  const availableBatches = useMemo(() => {
+    const set = new Set();
+    if (activeSessionId) set.add(activeSessionId);
+    feedbacks.forEach((f) => {
+      const b = f.batchName || f.sessionId;
+      if (b) set.add(b);
+    });
+    return Array.from(set);
+  }, [feedbacks, activeSessionId]);
+
+  // Apply both filters: batch and star rating
+  const filteredFeedbacks = useMemo(() => {
+    return feedbacks.filter((item) => {
+      const itemBatch = item.batchName || item.sessionId;
+      const matchesBatch =
+        selectedBatch === 'ALL' || itemBatch === selectedBatch;
+
+      const itemRating = Math.round(Number(item.rating) || 0);
+      const matchesRating =
+        selectedRating === 'ALL' || itemRating === Number(selectedRating);
+
+      return matchesBatch && matchesRating;
+    });
+  }, [feedbacks, selectedBatch, selectedRating]);
+
+  // Overall Statistics for the selected batch scope (or all)
+  const batchScopedFeedbacks = useMemo(() => {
+    if (selectedBatch === 'ALL') return feedbacks;
+    return feedbacks.filter((f) => (f.batchName || f.sessionId) === selectedBatch);
+  }, [feedbacks, selectedBatch]);
+
+  const totalReviews = batchScopedFeedbacks.length;
+  const totalRatingSum = batchScopedFeedbacks.reduce(
+    (acc, curr) => acc + (Number(curr.rating) || 0),
+    0
+  );
+  const averageRating =
+    totalReviews > 0 ? (totalRatingSum / totalReviews).toFixed(1) : '0.0';
 
   // Count per star
   const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-  feedbacks.forEach((f) => {
+  batchScopedFeedbacks.forEach((f) => {
     const star = Math.round(Number(f.rating) || 0);
-    if (counts[star] !== undefined) {
-      counts[star]++;
-    }
+    if (counts[star] !== undefined) counts[star]++;
   });
 
   const getPercentage = (count) => {
@@ -43,108 +75,55 @@ export default function AdminDashboard({
     return Math.round((count / totalReviews) * 100);
   };
 
-  // Filter feedbacks
-  const filteredFeedbacks = feedbacks.filter((item) => {
-    if (selectedFilter === 'ALL') return true;
-    return Math.round(Number(item.rating)) === Number(selectedFilter);
-  });
-
-  // Handle Excel download
+  // Handle Excel download: EXPORTS ONLY FILTERED FEEDBACKS!
   const handleDownloadExcel = () => {
-    exportFeedbackToExcel(feedbacks, activeSessionId);
+    if (filteredFeedbacks.length === 0) {
+      alert('No feedbacks match your current filter to export.');
+      return;
+    }
+    const filterContext = `${selectedBatch}_${selectedRating}stars`;
+    exportFeedbackToExcel(filteredFeedbacks, filterContext);
   };
 
-  // Generate color palette for student avatar circles
-  const avatarColors = [
-    { bg: '#fee2e2', text: '#991b1b' },
-    { bg: '#fef3c7', text: '#92400e' },
-    { bg: '#dcfce7', text: '#166534' },
-    { bg: '#e0e7ff', text: '#3730a3' },
-    { bg: '#fae8ff', text: '#86198f' },
-    { bg: '#ffedd5', text: '#9a3412' },
-  ];
-
   return (
-    <div className="container py-4" style={{ maxWidth: '780px' }}>
-      <div className="admin-card animate-pop">
-        {/* Top Status & Session Bar */}
-        <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-3 border-bottom gap-2">
-          <div className="d-flex flex-wrap align-items-center gap-2">
-            <span className="badge-live">
-              <span className="badge-live-dot"></span>
-              {isFirebaseActive ? 'Live Firebase Sync' : 'Local Sandbox Mode'}
-            </span>
-            <span className="badge bg-light text-secondary border">
-              Batch: {activeSessionId}
-            </span>
+    <div className="container py-4" style={{ maxWidth: '1040px' }}>
+      {/* 2-Column Responsive Layout Matching Image 2 */}
+      <div className="row g-4 align-items-start">
+        {/* ========================================================= */}
+        {/* LEFT CARD: Reviews and ratings summary & breakdown (Image 2) */}
+        {/* ========================================================= */}
+        <div className="col-12 col-lg-5">
+          <div className="admin-card p-4 h-100 shadow-sm border rounded-4 animate-pop">
+            {/* Top row with Back button and status badge */}
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <button
+                type="button"
+                className="btn btn-sm btn-light rounded-circle p-2 d-inline-flex align-items-center justify-content-center border shadow-xs"
+                style={{ width: '36px', height: '36px' }}
+                onClick={onNavigateHome}
+                title="Go to Student Feedback page"
+              >
+                <ArrowLeft size={17} className="text-secondary" />
+              </button>
 
-            {/* Scope Switcher: Current Batch vs All Batches */}
-            <div className="btn-group btn-group-sm rounded-pill p-0 bg-light border ms-1">
-              <button
-                type="button"
-                className={`btn btn-sm rounded-pill py-0 px-2 fw-semibold ${
-                  adminSessionScope === 'CURRENT'
-                    ? 'btn-dark shadow-sm'
-                    : 'text-secondary border-0 bg-transparent'
-                }`}
-                onClick={() => setAdminSessionScope && setAdminSessionScope('CURRENT')}
-                style={{ fontSize: '0.75rem', height: '26px' }}
-                title="Show only reviews from the active batch"
-              >
-                Current Batch
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm rounded-pill py-0 px-2 fw-semibold ${
-                  adminSessionScope === 'ALL'
-                    ? 'btn-dark shadow-sm'
-                    : 'text-secondary border-0 bg-transparent'
-                }`}
-                onClick={() => setAdminSessionScope && setAdminSessionScope('ALL')}
-                style={{ fontSize: '0.75rem', height: '26px' }}
-                title="Show all reviews from all past sessions"
-              >
-                All Batches
-              </button>
+              <span className="badge-live">
+                <span className="badge-live-dot"></span>
+                {isFirebaseActive ? 'Live Sync' : 'Sandbox'}
+              </span>
             </div>
-          </div>
 
-          <div className="d-flex align-items-center gap-2">
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-dark d-inline-flex align-items-center gap-2 rounded-pill px-3 py-1 shadow-sm"
-              onClick={handleDownloadExcel}
-              title="Download ratings and comments as Excel workbook"
-            >
-              <Download size={15} />
-              <span className="fw-semibold">Export Excel</span>
-            </button>
+            {/* Title (Matching Image 2) */}
+            <h2 className="fw-bold text-dark mb-3" style={{ fontSize: '1.65rem', letterSpacing: '-0.02em' }}>
+              Reviews and ratings
+            </h2>
 
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-2 rounded-pill px-3 py-1 shadow-sm"
-              onClick={onOpenResetModal}
-              title="Reset reviews for a new batch of students"
-            >
-              <RotateCcw size={15} />
-              <span className="fw-semibold">Reset Reviews</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Image 2 Layout: Overall Rating & Progress Bars */}
-        <div className="row align-items-center mb-4 g-3">
-          {/* Left: Overall score e.g. 4.9 OUT OF 5 */}
-          <div className="col-sm-5 col-12 text-center text-sm-start border-end-sm">
-            <div className="d-flex flex-column align-items-center align-items-sm-start">
-              <div className="d-flex align-items-baseline gap-2">
-                <span className="admin-score-big">{averageRating}</span>
-                <span className="admin-score-sub">OUT OF 5</span>
-              </div>
-
-              {/* Star visuals & total ratings */}
-              <div className="mt-2 text-center text-sm-start">
-                <div className="d-flex gap-1 justify-content-center justify-content-sm-start mb-1">
+            {/* Big Score (Matching Image 2 e.g. 4,7 with stars & count) */}
+            <div className="d-flex align-items-baseline gap-3 mb-2">
+              <span className="admin-score-big text-dark fw-bold" style={{ fontSize: '3.6rem', lineHeight: '1' }}>
+                {averageRating}
+              </span>
+              <div>
+                <div className="d-flex gap-1 mb-1">
                   {[1, 2, 3, 4, 5].map((s) => (
                     <Star
                       key={s}
@@ -157,115 +136,161 @@ export default function AdminDashboard({
                     />
                   ))}
                 </div>
-                <div className="text-muted small fw-semibold">
-                  {totalReviews} {totalReviews === 1 ? 'rating' : 'ratings'}
+                <div className="text-muted small fw-medium">
+                  Based on {totalReviews} {totalReviews === 1 ? 'rating' : 'ratings'}
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Right: Breakdown Progress Bars (5, 4, 3, 2, 1 stars) */}
-          <div className="col-sm-7 col-12">
-            <div className="ps-sm-3">
+            {/* Active Batch Indicator */}
+            <div className="p-2 px-3 rounded-3 bg-light border mb-4 d-flex align-items-center justify-content-between">
+              <span className="small text-muted fw-semibold">Current Active Batch:</span>
+              <span className="badge bg-primary text-white fw-bold px-2 py-1">
+                {activeSessionId || 'Batch-1'}
+              </span>
+            </div>
+
+            {/* Ratings Breakdown Progress Bars (Matching Image 2) */}
+            <div className="mb-4">
               {[5, 4, 3, 2, 1].map((starNum) => {
                 const count = counts[starNum] || 0;
                 const pct = getPercentage(count);
                 return (
-                  <div key={starNum} className="rating-bar-row">
-                    <span className="rating-bar-label">
+                  <div key={starNum} className="d-flex align-items-center gap-2 mb-2">
+                    <span className="small fw-semibold text-secondary d-flex align-items-center gap-1" style={{ width: '65px' }}>
                       {starNum} <Star size={13} fill="#f59e0b" stroke="#f59e0b" />
                     </span>
-                    <div className="rating-bar-track">
+                    <div className="flex-grow-1 bg-light rounded-pill overflow-hidden border" style={{ height: '7px' }}>
                       <div
-                        className="rating-bar-fill"
-                        style={{ width: `${pct}%` }}
+                        className="rounded-pill transition-all"
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          backgroundColor: '#0f172a',
+                          transition: 'width 0.4s ease',
+                        }}
                       ></div>
                     </div>
-                    <span className="rating-bar-percent">
+                    <span className="small text-muted fw-bold text-end" style={{ width: '38px' }}>
                       {pct}%
                     </span>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </div>
 
-        {/* Section Divider & Reviews Count (Matching Image 2) */}
-        <div className="d-flex flex-wrap justify-content-between align-items-center pt-3 pb-2 border-top border-bottom mb-3 gap-2">
-          <div className="fw-bold text-dark fs-6 d-flex align-items-center gap-2">
-            <Users size={18} className="text-secondary" />
-            <span>
-              {totalReviews} {totalReviews === 1 ? 'Review' : 'Reviews'}
-            </span>
-          </div>
-
-          {/* Filter Pills */}
-          <div className="d-flex align-items-center gap-1 overflow-auto py-1">
-            <span className="small text-muted me-1 d-none d-md-inline">Filter:</span>
-            {['ALL', '5', '4', '3', '2', '1'].map((val) => (
+            {/* Action Buttons: Export & Reset */}
+            <div className="d-flex flex-column gap-2 pt-3 border-top">
               <button
-                key={val}
                 type="button"
-                className={`btn btn-sm py-0 px-2 rounded-pill small fw-semibold ${
-                  selectedFilter === val
-                    ? 'btn-dark'
-                    : 'btn-outline-secondary'
-                }`}
-                style={{ fontSize: '0.75rem', height: '24px' }}
-                onClick={() => setSelectedFilter(val)}
+                className="btn btn-dark w-100 rounded-pill py-2 d-inline-flex align-items-center justify-content-center gap-2 shadow-sm fw-semibold"
+                onClick={handleDownloadExcel}
               >
-                {val === 'ALL' ? 'All' : `${val} ★`}
+                <Download size={16} />
+                <span>Export Filtered to Excel ({filteredFeedbacks.length})</span>
               </button>
-            ))}
+
+              <button
+                type="button"
+                className="btn btn-outline-danger w-100 rounded-pill py-2 d-inline-flex align-items-center justify-content-center gap-2 fw-semibold"
+                onClick={onOpenResetModal}
+              >
+                <RotateCcw size={16} />
+                <span>Start New Batch / Reset</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Review Feed List (Matching Image 2) */}
-        <div className="reviews-list">
-          {filteredFeedbacks.length === 0 ? (
-            <div className="text-center py-5">
-              <MessageSquare size={44} className="text-muted mb-2 opacity-50" />
-              <h5 className="text-secondary fw-bold">No reviews found</h5>
-              <p className="text-muted small mb-0">
-                {totalReviews === 0
-                  ? 'No students have submitted reviews for this session yet.'
-                  : `No reviews found matching ${selectedFilter} stars.`}
-              </p>
+        {/* ========================================================= */}
+        {/* RIGHT CARD: Reviews Feed & Filters (Image 2) */}
+        {/* ========================================================= */}
+        <div className="col-12 col-lg-7">
+          <div className="admin-card p-4 shadow-sm border rounded-4 animate-pop">
+            {/* Header: Reviews Count & Filters (Matching Image 2) */}
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-3 border-bottom">
+              <h3 className="fw-bold text-dark mb-0 fs-5 d-flex align-items-center gap-2">
+                <span>Reviews</span>
+                <span className="badge bg-light text-dark border rounded-pill px-2.5">
+                  {filteredFeedbacks.length}
+                </span>
+              </h3>
+
+              {/* Filters matching Image 2 dropdown style */}
+              <div className="d-flex flex-wrap align-items-center gap-2">
+                {/* Batch Filter Dropdown */}
+                <select
+                  className="form-select form-select-sm rounded-pill fw-semibold bg-light border-secondary-subtle"
+                  style={{ width: 'auto', minWidth: '130px', fontSize: '0.8rem' }}
+                  value={selectedBatch}
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  aria-label="Filter by Batch"
+                >
+                  <option value="ALL">All Batches</option>
+                  {availableBatches.map((batch) => (
+                    <option key={batch} value={batch}>
+                      {batch === activeSessionId ? `★ ${batch} (Active)` : batch}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Rating Filter Dropdown */}
+                <select
+                  className="form-select form-select-sm rounded-pill fw-semibold bg-light border-secondary-subtle"
+                  style={{ width: 'auto', minWidth: '115px', fontSize: '0.8rem' }}
+                  value={selectedRating}
+                  onChange={(e) => setSelectedRating(e.target.value)}
+                  aria-label="Filter by Rating"
+                >
+                  <option value="ALL">All ratings</option>
+                  <option value="5">5 Stars</option>
+                  <option value="4">4 Stars</option>
+                  <option value="3">3 Stars</option>
+                  <option value="2">2 Stars</option>
+                  <option value="1">1 Star</option>
+                </select>
+              </div>
             </div>
-          ) : (
-            filteredFeedbacks.map((item, index) => {
-              const color = avatarColors[index % avatarColors.length];
-              const dateDisplay = item.createdAt || 'Recent';
 
-              return (
-                <div key={item.id || index} className="review-item-card">
-                  <div className="d-flex gap-3 align-items-start">
-                    {/* Anonymous Student Avatar */}
+            {/* Reviews List Feed */}
+            <div className="reviews-list-scrollable" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+              {filteredFeedbacks.length === 0 ? (
+                <div className="text-center py-5">
+                  <MessageSquare size={42} className="text-muted mb-2 opacity-50" />
+                  <h6 className="text-dark fw-bold mb-1">No reviews match your filter</h6>
+                  <p className="text-muted small mb-0">
+                    Try changing the batch or star rating filter above.
+                  </p>
+                </div>
+              ) : (
+                filteredFeedbacks.map((item, index) => {
+                  const dateDisplay = item.createdAt || 'Recent';
+                  const itemBatch = item.batchName || item.sessionId || 'Batch-1';
+
+                  return (
                     <div
-                      className="avatar-circle"
-                      style={{
-                        backgroundColor: color.bg,
-                        color: color.text,
-                      }}
+                      key={item.id || index}
+                      className="p-3 mb-3 rounded-3 border bg-light-subtle transition-all"
+                      style={{ background: '#fcfdfe' }}
                     >
-                      S{index + 1}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-grow-1">
-                      <div className="d-flex flex-wrap justify-content-between align-items-baseline mb-1">
-                        <span className="fw-bold text-dark" style={{ fontSize: '0.98rem' }}>
-                          {item.authorTag || `Anonymous Student #${index + 1}`}
-                        </span>
-                        <span className="text-muted small" style={{ fontSize: '0.8rem' }}>
-                          <Calendar size={12} className="me-1 inline" />
+                      {/* Review Top Row: Name, Batch Badge, Date */}
+                      <div className="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="fw-bold text-dark small">
+                            {item.authorTag || `Anonymous Student #${index + 1}`}
+                          </span>
+                          <span className="badge bg-secondary-subtle text-secondary border small" style={{ fontSize: '0.72rem' }}>
+                            {itemBatch}
+                          </span>
+                        </div>
+                        <span className="text-muted small" style={{ fontSize: '0.78rem' }}>
+                          <Calendar size={12} className="inline me-1" />
                           {dateDisplay}
                         </span>
                       </div>
 
-                      {/* Stars Display + Rating text: "4 OUT OF 5" */}
-                      <div className="d-flex align-items-center gap-2 mb-1">
+                      {/* Stars */}
+                      <div className="d-flex align-items-center gap-2 mb-2">
                         <div className="d-flex gap-1">
                           {[1, 2, 3, 4, 5].map((s) => (
                             <Star
@@ -279,16 +304,13 @@ export default function AdminDashboard({
                             />
                           ))}
                         </div>
-                        <span
-                          className="text-muted fw-bold"
-                          style={{ fontSize: '0.78rem', letterSpacing: '0.02em' }}
-                        >
-                          {item.rating} OUT OF 5
+                        <span className="small text-muted fw-bold">
+                          {item.rating} / 5
                         </span>
                       </div>
 
-                      {/* Review Comment */}
-                      <p className="review-text-content mb-0">
+                      {/* Review Text */}
+                      <p className="mb-0 text-dark small" style={{ lineHeight: '1.5' }}>
                         {item.reviewText ? (
                           item.reviewText
                         ) : (
@@ -298,11 +320,11 @@ export default function AdminDashboard({
                         )}
                       </p>
                     </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

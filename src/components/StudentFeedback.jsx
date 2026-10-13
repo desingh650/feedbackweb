@@ -163,8 +163,8 @@ export default function StudentFeedback({ activeSessionId, onSwitchToAdmin }) {
             {[1, 2, 3, 4, 5].map((s) => (
               <Star
                 key={s}
-                size={28}
-                className={s <= rating ? 'star-icon filled' : 'star-icon empty'}
+                size={26}
+                className={s <= rating ? 'star-thankyou-icon filled' : 'star-thankyou-icon empty'}
               />
             ))}
           </div>
@@ -213,24 +213,30 @@ export default function StudentFeedback({ activeSessionId, onSwitchToAdmin }) {
 
           {existingSubmission && (
             <div
-              className="p-3 mx-2 rounded-4 text-start mb-4"
-              style={{ background: '#f1f5f9', border: '1px solid #cbd5e1' }}
+              className="p-3 mx-auto rounded-4 text-start mb-4 w-100"
+              style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', maxWidth: '380px' }}
             >
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="badge bg-secondary text-white px-2 py-1">Your Submission</span>
-                <div className="d-flex gap-1">
+              <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <span className="badge bg-secondary text-white px-2.5 py-1.5 fw-semibold" style={{ fontSize: '0.78rem' }}>
+                  Your Submission
+                </span>
+                <div className="d-flex align-items-center gap-1">
                   {[1, 2, 3, 4, 5].map((s) => (
                     <Star
                       key={s}
                       size={18}
-                      className={s <= (existingSubmission.rating || 5) ? 'star-icon filled' : 'star-icon empty'}
+                      className={`star-mini-icon ${s <= (existingSubmission.rating || 5) ? 'filled' : 'empty'}`}
                     />
                   ))}
                 </div>
               </div>
-              {existingSubmission.reviewText && (
-                <p className="mb-0 text-dark small fst-italic">
+              {existingSubmission.reviewText ? (
+                <p className="mb-0 text-dark small fst-italic px-1 pt-1 border-top border-light-subtle">
                   "{existingSubmission.reviewText}"
+                </p>
+              ) : (
+                <p className="mb-0 text-muted small fst-italic px-1">
+                  (Rating submitted without written comment)
                 </p>
               )}
             </div>

@@ -10,12 +10,18 @@ export default function ResetModal({
   onResetComplete,
 }) {
   const [mode, setMode] = useState('new_session'); // 'new_session' | 'wipe'
+  const [batchName, setBatchName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
   const handleExecuteReset = async () => {
+    if (mode === 'new_session' && !batchName.trim()) {
+      setError('Please enter a name for the new batch (e.g., Batch 2026 - Section A).');
+      return;
+    }
+
     setIsProcessing(true);
     setError('');
 
@@ -23,12 +29,14 @@ export default function ResetModal({
       const result = await resetFeedbacks({
         mode,
         currentSessionId: activeSessionId,
+        batchName: batchName.trim(),
       });
 
       // Clear local submission locks so this device and others can test again
       clearLocalSubmissionRecords();
 
       onResetComplete(result.newSessionId || activeSessionId);
+      setBatchName('');
       onClose();
     } catch (err) {
       console.error('Failed to reset feedback:', err);
@@ -44,7 +52,7 @@ export default function ResetModal({
       style={{ backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)' }}
       tabIndex="-1"
     >
-      <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: '460px' }}>
+      <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: '480px' }}>
         <div className="modal-content rounded-4 border-0 shadow-lg p-3">
           <div className="modal-header border-0 pb-0">
             <div className="d-flex align-items-center gap-2">
@@ -78,15 +86,17 @@ export default function ResetModal({
 
             {/* Option 1: New Session */}
             <div
-              className={`p-3 rounded-3 border mb-3 cursor-pointer transition ${
+              className={`p-3 rounded-3 border mb-3 transition ${
                 mode === 'new_session'
                   ? 'border-primary bg-primary-subtle'
                   : 'border-light-subtle bg-light'
               }`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => setMode('new_session')}
             >
-              <div className="form-check d-flex align-items-start gap-2 ps-0">
+              <div
+                className="form-check d-flex align-items-start gap-2 ps-0 cursor-pointer"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setMode('new_session')}
+              >
                 <input
                   className="form-check-input mt-1 ms-0"
                   type="radio"
@@ -103,10 +113,33 @@ export default function ResetModal({
                     </span>
                   </div>
                   <div className="text-muted small mt-1">
-                    Unlocks all student devices to submit fresh feedback immediately. Past responses are kept safe in database records.
+                    Unlocks all student devices to submit fresh feedback immediately. Past responses are stored under this new batch name.
                   </div>
                 </label>
               </div>
+
+              {/* Batch Name Input */}
+              {mode === 'new_session' && (
+                <div className="mt-3 pt-3 border-top border-primary-subtle">
+                  <label className="form-label small fw-bold text-dark mb-1">
+                    Enter New Batch Name <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control rounded-3 py-2"
+                    placeholder="e.g. Batch 2026 - CS A, Morning Class, etc."
+                    value={batchName}
+                    autoFocus
+                    onChange={(e) => {
+                      setBatchName(e.target.value);
+                      setError('');
+                    }}
+                  />
+                  <div className="form-text small text-muted">
+                    Students will submit under this batch, and you can filter reports by this name.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Option 2: Wipe Current */}

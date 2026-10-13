@@ -253,7 +253,8 @@ export async function submitFeedback({ rating, reviewText, deviceId, sessionId }
 
   try {
     const docRef = await addDoc(collection(db, 'student_feedbacks'), {
-      sessionId: sessionId || 'session-1',
+      sessionId: sessionId || 'Batch-1',
+      batchName: sessionId || 'Batch-1',
       deviceId,
       rating: Number(rating),
       reviewText: cleanReview,
@@ -285,23 +286,24 @@ export function subscribeToActiveSession(callback) {
       sessionDocRef,
       (snap) => {
         if (snap.exists()) {
-          callback(snap.data().sessionId || 'session-1');
+          callback(snap.data().sessionId || 'Batch-1');
         } else {
           setDoc(sessionDocRef, {
-            sessionId: 'session-1',
+            sessionId: 'Batch-1',
+            batchName: 'Batch-1',
             createdAt: serverTimestamp(),
-          }).then(() => callback('session-1'));
+          }).then(() => callback('Batch-1'));
         }
       },
       (err) => {
         console.warn('Error in session subscription, using fallback:', err);
-        callback('session-1');
+        callback('Batch-1');
       }
     );
     return unsubscribe;
   } catch (err) {
     console.error('Error setting up active session listener:', err);
-    callback('session-1');
+    callback('Batch-1');
     return () => {};
   }
 }
@@ -315,7 +317,7 @@ export function subscribeToFeedbacks(activeSessionId, callback) {
     const updateHandler = () => {
       const all = getMockData();
       const filtered = (activeSessionId && activeSessionId !== 'ALL')
-        ? all.filter((item) => item.sessionId === activeSessionId)
+        ? all.filter((item) => (item.sessionId === activeSessionId || item.batchName === activeSessionId))
         : all;
       callback(filtered);
     };
@@ -334,9 +336,6 @@ export function subscribeToFeedbacks(activeSessionId, callback) {
     const feedbacksRef = collection(db, 'student_feedbacks');
     
     // If activeSessionId is specified and not 'ALL', filter by sessionId
-    // NOTE: We deliberately do NOT chain orderBy('timestamp') in Firestore here
-    // because Firestore requires a manual composite index for where() + orderBy().
-    // Instead, we sort in JavaScript memory, which works 100% reliably with zero config!
     let q = feedbacksRef;
     if (activeSessionId && activeSessionId !== 'ALL') {
       q = query(feedbacksRef, where('sessionId', '==', activeSessionId));
@@ -353,6 +352,7 @@ export function subscribeToFeedbacks(activeSessionId, callback) {
             id: d.id,
             authorTag: `Anonymous Student #${index++}`,
             ...data,
+            batchName: data.batchName || data.sessionId || 'Batch-1',
             createdAt:
               data.createdAtFormatted ||
               (data.createdAt?.toDate ? data.createdAt.toDate().toLocaleString() : new Date(data.timestamp || Date.now()).toLocaleString()),
@@ -378,17 +378,17 @@ export function subscribeToFeedbacks(activeSessionId, callback) {
 
 /**
  * Reset all feedback.
- * mode: 'new_session' (Increments session ID; fresh start for all devices, preserving historical data)
+ * mode: 'new_session' (Sets new batch name, fresh start for student devices)
  * mode: 'wipe' (Permanently deletes active feedbacks from the database)
  */
-export async function resetFeedbacks({ mode = 'new_session', currentSessionId }) {
+export async function resetFeedbacks({ mode = 'new_session', currentSessionId, batchName }) {
+  const chosenBatch = (batchName && batchName.trim()) ? batchName.trim() : ('Batch-' + Date.now());
+
   if (!db) {
     if (mode === 'new_session') {
-      const newSessionId = 'session-' + Date.now();
-      setLocalActiveSessionId(newSessionId);
-      return { success: true, newSessionId };
+      setLocalActiveSessionId(chosenBatch);
+      return { success: true, newSessionId: chosenBatch };
     } else {
-      // Wipe
       saveMockData([]);
       return { success: true };
     }
@@ -396,13 +396,13 @@ export async function resetFeedbacks({ mode = 'new_session', currentSessionId })
 
   try {
     if (mode === 'new_session') {
-      const newSessionId = 'session-' + Date.now();
       const sessionDocRef = doc(db, 'system_config', 'active_session');
       await setDoc(sessionDocRef, {
-        sessionId: newSessionId,
+        sessionId: chosenBatch,
+        batchName: chosenBatch,
         updatedAt: serverTimestamp(),
       });
-      return { success: true, newSessionId };
+      return { success: true, newSessionId: chosenBatch };
     } else {
       // Hard wipe all documents for current session
       const q = query(

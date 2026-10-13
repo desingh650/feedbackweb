@@ -179,8 +179,8 @@ body {
 }
 
 .star-icon {
-  width: 42px;
-  height: 42px;
+  width: clamp(30px, 8.5vw, 42px);
+  height: clamp(30px, 8.5vw, 42px);
   transition: fill 0.2s ease, stroke 0.2s ease, filter 0.2s ease;
 }
 
@@ -193,6 +193,35 @@ body {
 .star-icon.empty {
   fill: var(--star-inactive);
   stroke: #bec8d6;
+}
+
+/* Mini & Thank You stars for previews to prevent mobile overflows */
+.star-thankyou-icon {
+  width: 26px !important;
+  height: 26px !important;
+  flex-shrink: 0;
+}
+.star-thankyou-icon.filled {
+  fill: var(--star-gold);
+  stroke: #e59c00;
+}
+.star-thankyou-icon.empty {
+  fill: var(--star-inactive);
+  stroke: #bec8d6;
+}
+
+.star-mini-icon {
+  width: 17px !important;
+  height: 17px !important;
+  flex-shrink: 0;
+}
+.star-mini-icon.filled {
+  fill: var(--star-gold);
+  stroke: #e59c00;
+}
+.star-mini-icon.empty {
+  fill: #e2e8f0;
+  stroke: #cbd5e1;
 }
 
 /* Inset Neumorphic Textarea */
