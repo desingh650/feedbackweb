@@ -269,13 +269,52 @@ export async function submitFeedback({ rating, reviewText, deviceId, sessionId }
 }
 
 /**
+ * Subscribe to the active session ID in real-time across all devices.
+ */
+export function subscribeToActiveSession(callback) {
+  if (!db) {
+    callback(getLocalActiveSessionId());
+    const handler = () => callback(getLocalActiveSessionId());
+    window.addEventListener('mock_feedback_updated', handler);
+    return () => window.removeEventListener('mock_feedback_updated', handler);
+  }
+
+  try {
+    const sessionDocRef = doc(db, 'system_config', 'active_session');
+    const unsubscribe = onSnapshot(
+      sessionDocRef,
+      (snap) => {
+        if (snap.exists()) {
+          callback(snap.data().sessionId || 'session-1');
+        } else {
+          setDoc(sessionDocRef, {
+            sessionId: 'session-1',
+            createdAt: serverTimestamp(),
+          }).then(() => callback('session-1'));
+        }
+      },
+      (err) => {
+        console.warn('Error in session subscription, using fallback:', err);
+        callback('session-1');
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.error('Error setting up active session listener:', err);
+    callback('session-1');
+    return () => {};
+  }
+}
+
+/**
  * Subscribe to feedback list in real-time.
+ * Avoids Firestore composite index errors by filtering and sorting cleanly in-memory.
  */
 export function subscribeToFeedbacks(activeSessionId, callback) {
   if (!db) {
     const updateHandler = () => {
       const all = getMockData();
-      const filtered = activeSessionId
+      const filtered = (activeSessionId && activeSessionId !== 'ALL')
         ? all.filter((item) => item.sessionId === activeSessionId)
         : all;
       callback(filtered);
@@ -293,10 +332,14 @@ export function subscribeToFeedbacks(activeSessionId, callback) {
 
   try {
     const feedbacksRef = collection(db, 'student_feedbacks');
-    let q = query(feedbacksRef, orderBy('timestamp', 'desc'));
-
-    if (activeSessionId) {
-      q = query(feedbacksRef, where('sessionId', '==', activeSessionId), orderBy('timestamp', 'desc'));
+    
+    // If activeSessionId is specified and not 'ALL', filter by sessionId
+    // NOTE: We deliberately do NOT chain orderBy('timestamp') in Firestore here
+    // because Firestore requires a manual composite index for where() + orderBy().
+    // Instead, we sort in JavaScript memory, which works 100% reliably with zero config!
+    let q = feedbacksRef;
+    if (activeSessionId && activeSessionId !== 'ALL') {
+      q = query(feedbacksRef, where('sessionId', '==', activeSessionId));
     }
 
     const unsubscribe = onSnapshot(
@@ -315,6 +358,10 @@ export function subscribeToFeedbacks(activeSessionId, callback) {
               (data.createdAt?.toDate ? data.createdAt.toDate().toLocaleString() : new Date(data.timestamp || Date.now()).toLocaleString()),
           });
         });
+
+        // Fast in-memory sort: latest first
+        items.sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
+
         callback(items);
       },
       (error) => {

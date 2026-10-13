@@ -12,7 +12,8 @@ import ResetModal from './components/ResetModal';
 import {
   subscribeToFeedbacks,
   getActiveSessionId,
-  isFirebaseLive
+  isFirebaseLive,
+  subscribeToActiveSession
 } from './services/firebase';
 
 export default function App() {
@@ -22,33 +23,39 @@ export default function App() {
   const [showResetModal, setShowResetModal] = useState(false);
 
   const [activeSessionId, setActiveSessionId] = useState('session-1');
+  const [adminSessionScope, setAdminSessionScope] = useState('CURRENT'); // 'CURRENT' | 'ALL'
   const [feedbacks, setFeedbacks] = useState([]);
   const [isLive, setIsLive] = useState(false);
 
-  // Initialize session and real-time subscription
+  // Subscribe to active session in real-time
   useEffect(() => {
     setIsLive(isFirebaseLive());
 
-    async function initSession() {
-      const sessionId = await getActiveSessionId();
+    const unsubscribe = subscribeToActiveSession((sessionId) => {
       setActiveSessionId(sessionId);
-    }
+    });
 
-    initSession();
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
-  // Subscribe to feedbacks
+  // Subscribe to feedbacks in real-time
   useEffect(() => {
     if (!activeSessionId) return;
 
-    const unsubscribe = subscribeToFeedbacks(activeSessionId, (items) => {
+    const targetSession = (currentView === 'admin' && adminSessionScope === 'ALL')
+      ? 'ALL'
+      : activeSessionId;
+
+    const unsubscribe = subscribeToFeedbacks(targetSession, (items) => {
       setFeedbacks(items);
     });
 
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, currentView, adminSessionScope]);
 
   // Handle Admin view click
   const handleAdminClick = () => {
@@ -139,6 +146,8 @@ export default function App() {
             activeSessionId={activeSessionId}
             onOpenResetModal={() => setShowResetModal(true)}
             isFirebaseActive={isLive}
+            adminSessionScope={adminSessionScope}
+            setAdminSessionScope={setAdminSessionScope}
           />
         )}
       </main>

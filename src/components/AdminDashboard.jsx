@@ -18,7 +18,9 @@ export default function AdminDashboard({
   feedbacks = [],
   activeSessionId,
   onOpenResetModal,
-  isFirebaseActive
+  isFirebaseActive,
+  adminSessionScope = 'CURRENT',
+  setAdminSessionScope
 }) {
   const [selectedFilter, setSelectedFilter] = useState('ALL');
 
@@ -67,7 +69,7 @@ export default function AdminDashboard({
       <div className="admin-card animate-pop">
         {/* Top Status & Session Bar */}
         <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-3 border-bottom gap-2">
-          <div className="d-flex align-items-center gap-2">
+          <div className="d-flex flex-wrap align-items-center gap-2">
             <span className="badge-live">
               <span className="badge-live-dot"></span>
               {isFirebaseActive ? 'Live Firebase Sync' : 'Local Sandbox Mode'}
@@ -75,6 +77,36 @@ export default function AdminDashboard({
             <span className="badge bg-light text-secondary border">
               Batch: {activeSessionId}
             </span>
+
+            {/* Scope Switcher: Current Batch vs All Batches */}
+            <div className="btn-group btn-group-sm rounded-pill p-0 bg-light border ms-1">
+              <button
+                type="button"
+                className={`btn btn-sm rounded-pill py-0 px-2 fw-semibold ${
+                  adminSessionScope === 'CURRENT'
+                    ? 'btn-dark shadow-sm'
+                    : 'text-secondary border-0 bg-transparent'
+                }`}
+                onClick={() => setAdminSessionScope && setAdminSessionScope('CURRENT')}
+                style={{ fontSize: '0.75rem', height: '26px' }}
+                title="Show only reviews from the active batch"
+              >
+                Current Batch
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm rounded-pill py-0 px-2 fw-semibold ${
+                  adminSessionScope === 'ALL'
+                    ? 'btn-dark shadow-sm'
+                    : 'text-secondary border-0 bg-transparent'
+                }`}
+                onClick={() => setAdminSessionScope && setAdminSessionScope('ALL')}
+                style={{ fontSize: '0.75rem', height: '26px' }}
+                title="Show all reviews from all past sessions"
+              >
+                All Batches
+              </button>
+            </div>
           </div>
 
           <div className="d-flex align-items-center gap-2">
